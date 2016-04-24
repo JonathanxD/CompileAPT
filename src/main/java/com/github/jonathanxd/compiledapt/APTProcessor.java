@@ -82,7 +82,9 @@ public class APTProcessor extends AbstractProcessor {
     private Messager messager = null;
 
     private Trees trees;
-    private ServiceLoader<CompiledProcessor> load;
+    private Set<CompiledProcessor> loaded = new HashSet<>();
+
+    private CompiledProcessingEnv compiledProcessingEnv;
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
@@ -90,22 +92,37 @@ public class APTProcessor extends AbstractProcessor {
         this.trees = Trees.instance(processingEnv);
         messager = processingEnv.getMessager();
 
-        CompiledProcessingEnv compiledProcessingEnv = new CompiledProcessingEnv(classPathUtils, sourceUtils, elementUtils, toFileUtils, processingEnv);
+        compiledProcessingEnv = new CompiledProcessingEnv(classPathUtils, sourceUtils, elementUtils, toFileUtils, processingEnv);
 
-        load = ServiceLoader.load(CompiledProcessor.class);
+        updatedServices();
 
-        for (CompiledProcessor compiledProcessor : load) {
+    }
 
-            compiledProcessor.init(compiledProcessingEnv);
+    public void updatedServices() {
+        ServiceLoader<CompiledProcessor> localLoad = ServiceLoader.load(CompiledProcessor.class);
+
+        for (CompiledProcessor compiledProcessor : localLoad) {
+            if(!loaded.contains(compiledProcessor)) {
+
+                messager.printMessage(Diagnostic.Kind.OTHER, "Loading processor '"+compiledProcessor.getClass().getCanonicalName()+"'...");
+
+                compiledProcessor.init(compiledProcessingEnv);
+
+                messager.printMessage(Diagnostic.Kind.OTHER, "Loaded!");
+
+
+            }
         }
 
     }
 
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
 
+        updatedServices();
+
         messager.printMessage(Diagnostic.Kind.NOTE, "Processing annotations '"+annotations+"'...");
 
-        for (CompiledProcessor compiledProcessor : load) {
+        for (CompiledProcessor compiledProcessor : loaded) {
 
             Map<TypeElement, File> elements = findElements(compiledProcessor, roundEnv);
 
