@@ -84,6 +84,10 @@ public class MemoryCompiler {
         return compile(fileName, source, new PrintWriter(System.err), null, classPath);
     }
 
+    public Map<String, byte[]> compileWithClasspath(String fileName, String source, String classPath, PrintWriter err) {
+        return compile(fileName, source, err, null, classPath);
+    }
+
     public Map<String, byte[]> compileWithSourcepath(String fileName, String source, String sourcePath) {
         return compile(fileName, source, new PrintWriter(System.err), sourcePath, null);
     }

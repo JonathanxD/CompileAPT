@@ -28,7 +28,8 @@
 package com.github.jonathanxd.compiledapt.utils;
 
 import java.io.File;
-import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.Arrays;
 
 /**
@@ -38,19 +39,49 @@ public class ToFileUtilsImpl implements ToFileUtils {
 
 
     @Override
-    public File[] toFile(URI[] uris) {
+    public File[] toFile(URL[] uris) {
 
-        return Arrays.stream(uris).filter(uri -> {
-            try{
-                File file = new File(uri);
-                if(file.exists()) {
-                    return true;
-                }
-            }catch (Throwable ignored) {
-            }
+        return Arrays.stream(uris)
+                .filter(url -> {
+                    try {
+                        url.toURI();
+                        return true;
+                    } catch (Throwable t) {
+                        return false;
+                    }
+                })
+                .map(url -> {
+                    try {
+                        return url.toURI();
+                    } catch (URISyntaxException e) {
+                        throw new RuntimeException(e);
+                    }
+                }).filter(url -> {
+                    try {
+                        File file = new File(url);
+                        if (file.exists()) {
+                            return true;
+                        }
+                    } catch (Throwable ignored) {
+                    }
 
-            return false;
-        }).map(File::new).toArray(File[]::new);
+                    return false;
+                }).map(File::new).toArray(File[]::new);
 
     }
+
+    @Override
+    public File getRootFromPackage(String thePackage, File current) {
+        String path = current.getAbsolutePath();
+        thePackage = thePackage.replace('.', File.separatorChar);
+
+        if(path.endsWith(thePackage)) {
+            int i = path.lastIndexOf(thePackage);
+
+            return new File(path.substring(0, i));
+        }
+
+        return null;
+    }
+
 }

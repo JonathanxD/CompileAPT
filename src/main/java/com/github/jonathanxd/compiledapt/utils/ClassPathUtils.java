@@ -27,17 +27,17 @@
  */
 package com.github.jonathanxd.compiledapt.utils;
 
-import java.net.URI;
+import java.net.URL;
 
 /**
  * Created by jonathan on 24/04/16.
  */
 public interface ClassPathUtils {
 
-    default URI[] getUris(Class<?> aClass) {
-        return getUris(aClass.getClassLoader());
+    default URL[] getUrls(Class<?> aClass) {
+        return getUrls(aClass.getClassLoader());
     }
 
-    URI[] getUris(ClassLoader classLoader);
+    URL[] getUrls(ClassLoader classLoader);
 
 }

@@ -29,6 +29,7 @@ package com.github.jonathanxd.compiledapt.utils;
 
 import java.io.File;
 import java.net.URI;
+import java.net.URL;
 import java.util.function.Consumer;
 
 /**
@@ -36,10 +37,12 @@ import java.util.function.Consumer;
  */
 public interface ToFileUtils {
 
-    File[] toFile(URI[] uris);
+    File[] toFile(URL[] urls);
 
-    default void toFile(URI[] uris, Consumer<File> fileConsumer) {
-        for (File file : toFile(uris)) {
+    File getRootFromPackage(String thePackage, File current);
+
+    default void toFile(URL[] urls, Consumer<File> fileConsumer) {
+        for (File file : toFile(urls)) {
             fileConsumer.accept(file);
         }
     }

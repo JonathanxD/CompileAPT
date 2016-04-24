@@ -49,11 +49,15 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.net.URI;
+import java.net.URL;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Messager;
@@ -86,6 +90,10 @@ public class APTProcessor extends AbstractProcessor {
 
     private CompiledProcessingEnv compiledProcessingEnv;
 
+    public APTProcessor() {
+
+    }
+
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
@@ -99,10 +107,10 @@ public class APTProcessor extends AbstractProcessor {
     }
 
     public void updatedServices() {
-        ServiceLoader<CompiledProcessor> localLoad = ServiceLoader.load(CompiledProcessor.class);
+        ServiceLoader<CompiledProcessor> localLoad = ServiceLoader.load(CompiledProcessor.class, APTProcessor.class.getClassLoader());
 
         for (CompiledProcessor compiledProcessor : localLoad) {
-            if(!loaded.contains(compiledProcessor)) {
+            if(!loaded.stream().map(Object::toString).collect(Collectors.toList()).contains(compiledProcessor.toString())) {
 
                 messager.printMessage(Diagnostic.Kind.OTHER, "Loading processor '"+compiledProcessor.getClass().getCanonicalName()+"'...");
 
@@ -110,12 +118,14 @@ public class APTProcessor extends AbstractProcessor {
 
                 messager.printMessage(Diagnostic.Kind.OTHER, "Loaded!");
 
+                loaded.add(compiledProcessor);
 
             }
         }
 
     }
 
+    @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
 
         updatedServices();
@@ -124,7 +134,7 @@ public class APTProcessor extends AbstractProcessor {
 
         for (CompiledProcessor compiledProcessor : loaded) {
 
-            Map<TypeElement, File> elements = findElements(compiledProcessor, roundEnv);
+            Map<TypeElement, File> elements = findElements(annotations, compiledProcessor, roundEnv);
 
             elements.forEach((typeElement, file) -> {
 
@@ -165,14 +175,21 @@ public class APTProcessor extends AbstractProcessor {
 
         String fullName = aPackage + "." + fileName;
 
-        URI[] uris = classPathUtils.getUris(selectedCl);
+        URL[] urls = classPathUtils.getUrls(selectedCl);
 
-        String classPathString = JunStringUtil.toString(toFileUtils.toFile(uris), file1 -> file1.toURI().toString(), ":");
+        String classPathString = JunStringUtil.toString(toFileUtils.toFile(urls), file1 -> file1.toURI().toString(), ":");
 
         MemoryCompiler memoryCompiler = new MemoryCompiler();
 
+        File sources;
 
-        Map<String, byte[]> compile = memoryCompiler.compileWithClasspath(fullName, sourcej, classPathString);
+        if(file.getAbsoluteFile().getParentFile() == null) {
+            sources = new File(".");
+        }else {
+            sources = toFileUtils.getRootFromPackage(aPackage, file.getAbsoluteFile().getParentFile());
+        }
+
+        Map<String, byte[]> compile = Objects.requireNonNull(memoryCompiler.compile(fullName, sourcej, sources.getPath(), classPathString), "Cannot compile!");
 
         MemoryClassLoader memoryClassLoader = new MemoryClassLoader(compile, classPathString, selectedCl);
 
@@ -192,15 +209,37 @@ public class APTProcessor extends AbstractProcessor {
 
     }
 
-    private Map<TypeElement, File> findElements(CompiledProcessor compiledProcessor, RoundEnvironment roundEnv) {
+    @SuppressWarnings("unchecked")
+    private Map<TypeElement, File> findElements(Set<? extends TypeElement> annotations, CompiledProcessor compiledProcessor, RoundEnvironment roundEnv) {
 
         Map<TypeElement, File> elementFileMap = new HashMap<>();
 
         Class<? extends Annotation>[] supportedAnnotations = compiledProcessor.getSupportedAnnotations();
 
-        for (Class<? extends Annotation> supportedAnnotation : supportedAnnotations) {
+        TypeElement[] annotationsProcess = Arrays.stream(supportedAnnotations).filter(aClass -> {
+            for (TypeElement annotation : annotations) {
+                if(aClass.getCanonicalName().equals(annotation.getQualifiedName().toString())) {
+                    return true;
+                }
+            }
+
+            return false;
+        }).map(aClass -> {
+            for (TypeElement annotation : annotations) {
+                if(aClass.getCanonicalName().equals(annotation.getQualifiedName().toString())) {
+                    return annotation;
+                }
+            }
+            return (TypeElement) null;
+        }).toArray(TypeElement[]::new);
+
+        for (TypeElement supportedAnnotation : annotationsProcess) {
 
             Set<? extends Element> bindAnnotated = roundEnv.getElementsAnnotatedWith(supportedAnnotation);
+
+            if(bindAnnotated.size() == 0) {
+                messager.printMessage(Diagnostic.Kind.OTHER, "Cannot find elements annotated with '"+supportedAnnotation+"'");
+            }
 
             bindAnnotated.forEach(o -> {
 

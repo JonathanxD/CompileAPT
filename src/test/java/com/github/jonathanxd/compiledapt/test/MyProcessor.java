@@ -45,19 +45,20 @@ import javax.lang.model.element.TypeElement;
  * Created by jonathan on 24/04/16.
  */
 public class MyProcessor implements CompiledProcessor {
+
     @Override
     public void init(CompiledProcessingEnv compiledProcessingEnv) {
-
+        System.out.println("Init!");
     }
 
     @Override
     public void process(UnknownElementState<Set<Class<?>>, File> compiledUnresolved, TypeElement element, RoundEnvironment roundEnvironment) {
         Set<Class<?>> resolvedElement = compiledUnresolved.getResolvedElement();
 
-        for(Class<?> res : resolvedElement) {
+        for (Class<?> res : resolvedElement) {
             Method[] declaredMethods = res.getDeclaredMethods();
 
-            for(Method declaredMethod : declaredMethods) {
+            for (Method declaredMethod : declaredMethods) {
                 Assert.assertTrue(declaredMethod.getAnnotation(AsBin.class) != null);
             }
         }

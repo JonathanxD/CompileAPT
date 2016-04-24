@@ -30,13 +30,15 @@ package com.github.jonathanxd.compiledapt.utils;
 import org.reflections.util.ClasspathHelper;
 
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 
 /**
  * Created by jonathan on 24/04/16.
  */
 public class ClassPathUtilsImpl implements ClassPathUtils {
     @Override
-    public URI[] getUris(ClassLoader classLoader) {
-        return ClasspathHelper.forClassLoader(classLoader).stream().toArray(URI[]::new);
+    public URL[] getUrls(ClassLoader classLoader) {
+        return ClasspathHelper.forClassLoader(classLoader).stream().toArray(URL[]::new);
     }
 }
