@@ -50,13 +50,16 @@ import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.net.URI;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import javax.annotation.processing.AbstractProcessor;
@@ -83,10 +86,13 @@ public class APTProcessor extends AbstractProcessor {
     private final SourceUtils sourceUtils = new SourceUtilsImpl();
     private final ToFileUtils toFileUtils = new ToFileUtilsImpl();
 
+    private final Map<CompiledProcessor, Collection<File>> processedFiles = new HashMap<>();
+
     private Messager messager = null;
 
     private Trees trees;
     private Set<CompiledProcessor> loaded = new HashSet<>();
+
 
     private CompiledProcessingEnv compiledProcessingEnv;
 
@@ -102,11 +108,30 @@ public class APTProcessor extends AbstractProcessor {
 
         compiledProcessingEnv = new CompiledProcessingEnv(classPathUtils, sourceUtils, elementUtils, toFileUtils, processingEnv);
 
-        updatedServices();
+        loadServices();
 
     }
 
-    public void updatedServices() {
+    private boolean isProcessed(CompiledProcessor compiledProcessor, File file) {
+        if(!processedFiles.containsKey(compiledProcessor)) {
+            return false;
+        } else {
+            return processedFiles.get(compiledProcessor).contains(file);
+        }
+    }
+
+    private void setProcessed(CompiledProcessor compiledProcessor, File file) {
+        if(isProcessed(compiledProcessor, file))
+            return;
+
+        if(!processedFiles.containsKey(compiledProcessor)) {
+            processedFiles.put(compiledProcessor, new ArrayList<>());
+        }
+
+        processedFiles.get(compiledProcessor).add(file);
+    }
+
+    public void loadServices() {
         ServiceLoader<CompiledProcessor> localLoad = ServiceLoader.load(CompiledProcessor.class, APTProcessor.class.getClassLoader());
 
         for (CompiledProcessor compiledProcessor : localLoad) {
@@ -128,9 +153,9 @@ public class APTProcessor extends AbstractProcessor {
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
 
-        updatedServices();
-
         messager.printMessage(Diagnostic.Kind.NOTE, "Processing annotations '"+annotations+"'...");
+
+        final AtomicBoolean any = new AtomicBoolean(false);
 
         for (CompiledProcessor compiledProcessor : loaded) {
 
@@ -138,25 +163,33 @@ public class APTProcessor extends AbstractProcessor {
 
             elements.forEach((typeElement, file) -> {
 
-                Class<? extends Annotation>[] supportedAnnotations = compiledProcessor.getSupportedAnnotations();
+                if(!isProcessed(compiledProcessor, file)) {
 
-                ClassLoader cl;
+                    any.set(true);
 
-                if(supportedAnnotations.length == 0) {
-                    cl = ClassLoader.getSystemClassLoader();
-                } else {
-                    cl = supportedAnnotations[0].getClassLoader();
-                }
+                    setProcessed(compiledProcessor, file);
 
-                try {
-                    Set<Class<?>> compile = compile(file, typeElement, cl);
+                    Class<? extends Annotation>[] supportedAnnotations = compiledProcessor.getSupportedAnnotations();
 
-                    compiledProcessor.process(new UnknownElementState<>(compile, file), typeElement, roundEnv);
+                    ClassLoader cl;
 
-                } catch (IOException e) {
-                    compiledProcessor.process(new UnknownElementState<>(file), typeElement, roundEnv);
+                    if(supportedAnnotations.length == 0) {
+                        cl = ClassLoader.getSystemClassLoader();
+                    } else {
+                        cl = supportedAnnotations[0].getClassLoader();
+                    }
 
-                    messager.printMessage(Diagnostic.Kind.ERROR, e.getLocalizedMessage());
+                    try {
+                        Set<Class<?>> compile = compile(file, typeElement, cl);
+
+                        compiledProcessor.process(new UnknownElementState<>(compile, file), typeElement, roundEnv);
+
+                    } catch (IOException e) {
+                        compiledProcessor.process(new UnknownElementState<>(file), typeElement, roundEnv);
+
+                        messager.printMessage(Diagnostic.Kind.ERROR, e.getLocalizedMessage());
+                    }
+
                 }
 
             });
@@ -164,7 +197,7 @@ public class APTProcessor extends AbstractProcessor {
 
         messager.printMessage(Diagnostic.Kind.NOTE, "Process end!");
 
-        return false;
+        return any.get();
     }
 
     private Set<Class<?>> compile(File file, Element element, ClassLoader selectedCl) throws IOException {
@@ -189,9 +222,11 @@ public class APTProcessor extends AbstractProcessor {
             sources = toFileUtils.getRootFromPackage(aPackage, file.getAbsoluteFile().getParentFile());
         }
 
+        messager.printMessage(Diagnostic.Kind.OTHER, "Source folder: "+sources.getPath());
+
         Map<String, byte[]> compile = Objects.requireNonNull(memoryCompiler.compile(fullName, sourcej, sources.getPath(), classPathString), "Cannot compile!");
 
-        MemoryClassLoader memoryClassLoader = new MemoryClassLoader(compile, classPathString, selectedCl);
+        MemoryClassLoader memoryClassLoader = new MemoryClassLoader(compile, classPathString, this.getClass().getClassLoader());
 
         try {
             Iterable<Class> classes = memoryClassLoader.loadAll();
