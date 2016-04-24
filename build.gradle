@@ -34,7 +34,7 @@ ext {
     description = "Hackly pre-compile source codes during Annotation Processing for an Abstract Manipulation"
 }
 
-build.finalizedBy(shadowJar)
+jar.finalizedBy(shadowJar)
 
 // Tasks
 allprojects {
