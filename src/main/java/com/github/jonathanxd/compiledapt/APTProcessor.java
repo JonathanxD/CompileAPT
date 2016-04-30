@@ -160,6 +160,8 @@ public class APTProcessor extends AbstractProcessor {
 
         for (CompiledProcessor compiledProcessor : loaded) {
 
+            compiledProcessor.preProcess(annotations, roundEnv);
+
             String extraSrcDirsTmp = null;
 
             String[] sourcesDir = compiledProcessor.sourcesDir();
@@ -195,6 +197,8 @@ public class APTProcessor extends AbstractProcessor {
                     } else {
                         cl = supportedAnnotations[0].getClassLoader();
                     }
+
+
 
                     try {
                         Set<Class<?>> compile = compile(file, typeElement, cl, extraSrcDirs);
