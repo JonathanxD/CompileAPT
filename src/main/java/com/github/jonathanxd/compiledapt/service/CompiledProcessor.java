@@ -50,4 +50,8 @@ public interface CompiledProcessor {
 
     Class<? extends Annotation>[] getSupportedAnnotations();
 
+    default String[] sourcesDir() {
+        return new String[0];
+    }
+
 }

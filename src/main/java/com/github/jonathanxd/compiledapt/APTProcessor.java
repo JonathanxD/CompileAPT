@@ -59,6 +59,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -159,7 +160,23 @@ public class APTProcessor extends AbstractProcessor {
 
         for (CompiledProcessor compiledProcessor : loaded) {
 
+            String extraSrcDirsTmp = null;
+
+            String[] sourcesDir = compiledProcessor.sourcesDir();
+
+            if(sourcesDir != null && sourcesDir.length > 0) {
+                StringJoiner sj = new StringJoiner(":");
+
+                for (String dir : sourcesDir) {
+                    sj.add(dir);
+                }
+
+                extraSrcDirsTmp = sj.toString();
+            }
+
             Map<TypeElement, File> elements = findElements(annotations, compiledProcessor, roundEnv);
+
+            final String extraSrcDirs = extraSrcDirsTmp;
 
             elements.forEach((typeElement, file) -> {
 
@@ -180,7 +197,7 @@ public class APTProcessor extends AbstractProcessor {
                     }
 
                     try {
-                        Set<Class<?>> compile = compile(file, typeElement, cl);
+                        Set<Class<?>> compile = compile(file, typeElement, cl, extraSrcDirs);
 
                         compiledProcessor.process(new UnknownElementState<>(compile, file), typeElement, roundEnv);
 
@@ -200,7 +217,7 @@ public class APTProcessor extends AbstractProcessor {
         return any.get();
     }
 
-    private Set<Class<?>> compile(File file, Element element, ClassLoader selectedCl) throws IOException {
+    private Set<Class<?>> compile(File file, Element element, ClassLoader selectedCl, String extraSrcDirs) throws IOException {
         String fileName = file.getName().substring(file.getName().lastIndexOf('/') + 1, file.getName().length());
         String[] source = sourceUtils.getSource(file);
         String aPackage = elementUtils.getPackage(element);
@@ -214,17 +231,24 @@ public class APTProcessor extends AbstractProcessor {
 
         MemoryCompiler memoryCompiler = new MemoryCompiler();
 
-        File sources;
+        String sourcesPath;
 
         if(file.getAbsoluteFile().getParentFile() == null) {
-            sources = new File(".");
+            sourcesPath = new File(".").getPath();
         }else {
-            sources = toFileUtils.getRootFromPackage(aPackage, file.getAbsoluteFile().getParentFile());
+            sourcesPath = toFileUtils.getRootFromPackage(aPackage, file.getAbsoluteFile().getParentFile()).getPath();
         }
 
-        messager.printMessage(Diagnostic.Kind.OTHER, "Source folder: "+sources.getPath());
+        if(extraSrcDirs != null) {
+            if(sourcesPath == null)
+                sourcesPath = extraSrcDirs;
+            else
+                sourcesPath = sourcesPath + ":" + extraSrcDirs;
+        }
 
-        Map<String, byte[]> compile = Objects.requireNonNull(memoryCompiler.compile(fullName, sourcej, sources.getPath(), classPathString), "Cannot compile!");
+        messager.printMessage(Diagnostic.Kind.OTHER, "Source folder: "+sourcesPath);
+
+        Map<String, byte[]> compile = Objects.requireNonNull(memoryCompiler.compile(fullName, sourcej, sourcesPath, classPathString), "Cannot compile!");
 
         MemoryClassLoader memoryClassLoader = new MemoryClassLoader(compile, classPathString, this.getClass().getClassLoader());
 
