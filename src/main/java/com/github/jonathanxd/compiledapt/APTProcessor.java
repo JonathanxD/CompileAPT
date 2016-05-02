@@ -254,7 +254,15 @@ public class APTProcessor extends AbstractProcessor {
 
         Map<String, byte[]> compile = Objects.requireNonNull(memoryCompiler.compile(fullName, sourcej, sourcesPath, classPathString), "Cannot compile!");
 
-        MemoryClassLoader memoryClassLoader = new MemoryClassLoader(compile, classPathString, this.getClass().getClassLoader());
+        ClassLoader loader;
+
+        try{
+            loader = ClassLoader.getSystemClassLoader();
+        }catch (Throwable t) {
+            loader = this.getClass().getClassLoader();
+        }
+
+        MemoryClassLoader memoryClassLoader = new MemoryClassLoader(compile, classPathString, loader);
 
         try {
             Iterable<Class> classes = memoryClassLoader.loadAll();

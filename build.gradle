@@ -4,7 +4,7 @@ plugins {
 }
 
 group 'com.github.jonathanxd'
-version '1.2.2-SNAPSHOT'
+version '1.2.3-SNAPSHOT'
 
 allprojects {
     apply plugin: 'idea'
@@ -17,7 +17,7 @@ allprojects {
     }
 }
 
-defaultTasks 'licenseFormat', 'build', 'test', 'jar', 'shadowJar'
+defaultTasks 'licenseFormat', 'build', 'test', 'jar'//, 'shadowJar'
 
 sourceCompatibility = 1.8
 allprojects {
@@ -29,6 +29,9 @@ allprojects {
 
 shadowJar {
     classifier = ''
+    dependencies {
+        include(dependency("org.reflections:reflections"))
+    }
 }
 
 // Setup
