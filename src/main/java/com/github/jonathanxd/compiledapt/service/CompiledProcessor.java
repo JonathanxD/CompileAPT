@@ -51,6 +51,10 @@ public interface CompiledProcessor {
 
     }
 
+    default ClassLoader getClassLoader(File fileToLoad) {
+        return this.getClass().getClassLoader();
+    }
+
     void process(UnknownElementState<Set<Class<?>>, File> compiledUnresolved, TypeElement element, RoundEnvironment roundEnvironment);
 
     Class<? extends Annotation>[] getSupportedAnnotations();

@@ -133,7 +133,7 @@ public class APTProcessor extends AbstractProcessor {
     }
 
     public void loadServices() {
-        ServiceLoader<CompiledProcessor> localLoad = ServiceLoader.load(CompiledProcessor.class, ClassLoader.getSystemClassLoader());
+        ServiceLoader<CompiledProcessor> localLoad = ServiceLoader.load(CompiledProcessor.class, APTProcessor.class.getClassLoader());
 
         for (CompiledProcessor compiledProcessor : localLoad) {
             if(!loaded.stream().map(Object::toString).collect(Collectors.toList()).contains(compiledProcessor.toString())) {
@@ -201,7 +201,7 @@ public class APTProcessor extends AbstractProcessor {
 
 
                     try {
-                        Set<Class<?>> compile = compile(file, typeElement, cl, extraSrcDirs);
+                        Set<Class<?>> compile = compile(file, typeElement, cl, extraSrcDirs, compiledProcessor);
 
                         compiledProcessor.process(new UnknownElementState<>(compile, file), typeElement, roundEnv);
 
@@ -221,7 +221,7 @@ public class APTProcessor extends AbstractProcessor {
         return any.get();
     }
 
-    private Set<Class<?>> compile(File file, Element element, ClassLoader selectedCl, String extraSrcDirs) throws IOException {
+    private Set<Class<?>> compile(File file, Element element, ClassLoader selectedCl, String extraSrcDirs, CompiledProcessor processor) throws IOException {
         String fileName = file.getName().substring(file.getName().lastIndexOf('/') + 1, file.getName().length());
         String[] source = sourceUtils.getSource(file);
         String aPackage = elementUtils.getPackage(element);
@@ -257,9 +257,14 @@ public class APTProcessor extends AbstractProcessor {
         ClassLoader loader;
 
         try{
-            loader = ClassLoader.getSystemClassLoader();
+            loader = processor.getClassLoader(file);
+            //loader = ClassLoader.getSystemClassLoader();
         }catch (Throwable t) {
-            loader = this.getClass().getClassLoader();
+            try{
+                loader = this.getClass().getClassLoader();
+            }catch (Throwable x) {
+                loader = ClassLoader.getSystemClassLoader();
+            }
         }
 
         MemoryClassLoader memoryClassLoader = new MemoryClassLoader(compile, classPathString, loader);
