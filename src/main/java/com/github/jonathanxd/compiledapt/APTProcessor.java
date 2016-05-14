@@ -133,7 +133,7 @@ public class APTProcessor extends AbstractProcessor {
     }
 
     public void loadServices() {
-        ServiceLoader<CompiledProcessor> localLoad = ServiceLoader.load(CompiledProcessor.class, APTProcessor.class.getClassLoader());
+        ServiceLoader<CompiledProcessor> localLoad = ServiceLoader.load(CompiledProcessor.class, ClassLoader.getSystemClassLoader());
 
         for (CompiledProcessor compiledProcessor : localLoad) {
             if(!loaded.stream().map(Object::toString).collect(Collectors.toList()).contains(compiledProcessor.toString())) {
